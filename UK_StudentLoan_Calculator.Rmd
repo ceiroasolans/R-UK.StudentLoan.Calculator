@@ -1,0 +1,122 @@
+---
+title: "UK Student Loan Debt Calculator"
+author: "Conrado Eiroa-Solans & Diego Ramos"
+output: html_document
+---
+Here is some custom code to calculate how long it will take you to repay your debt if you studied in the UK and took a loan from the government. All you have to do is introduce the amount of debt you undertook for your undergrad/postgrad studies, your expected salary in the future, and how much of your salary at any given moment you'd like to put towards your repayment. 
+
+Input these values in the following lines: 
+  Undergrad debt: line 21
+  Grad debt: line 22
+  Expected salary: line 29
+  Repayment rate undergrad: line 47
+  Repayment rate postgrad: line 53
+
+
+```{r}
+undergrad_debt = vector(mode = "integer", length = 25)
+graduate_debt = vector(mode = "integer", length = 25)
+
+#YOUR INPUT
+undergrad_debt[1] = 33260.94
+graduate_debt[1] = 10382.71
+
+#Set up data
+years = 1:25 #years after graduating.Here, we're looking at 25 years into the future. 
+th_income1 = 26575 # income threshold 1 (as per UK guidelines in 2020; surpassed = pay more fees)
+th_income2 = 47835 # income threshold 2 (when surpassed, you pay even higher fees)
+postgrad_interest = rep(1.056, 25) #again, as of 2020
+salary = c(0, (rep(25000,4)), (rep(30000,5)), (rep(50000,5)), (rep(75000,10))) #this is kind of arbitrary, but the idea is that you will earn 25k for ~4 years, 30 for 5 etc. Can be updated. 
+
+
+#Interest to pay per year depending on salary 
+undergrad_interest = vector(mode = "integer", length = 25)
+for (i in 1:length(undergrad_interest)) {
+  if (salary[i] <= th_income1){         
+  undergrad_interest[i] = 1.026 
+}  else if (salary[i] > th_income1 && salary[i] <= th_income2){ 
+    undergrad_interest[i] = 1.026 + (( (salary[i]-th_income1) / (th_income2-th_income1) ) *0.03)
+}  else {
+    undergrad_interest[i]= 1.056 }}
+undergrad_interest = as.numeric(format(round(undergrad_interest, 3)))
+
+#Yearly repayment amount based on salary (currently the minimum)
+repayment_ug = vector(mode = "integer", length = 25)
+for (i in 1:length(repayment_ug)) {
+  if (salary[i] >= th_income1){
+  repayment_ug[i] = salary[i] * 0.09 #undergrad (9% min)
+  }}
+
+repayment_pg = vector(mode = "integer", length = 25)
+for (i in 1:length(repayment_pg)) {
+  if (salary[i] >= th_income1){
+  repayment_pg[i] = salary[i] * 0.06  #graduate (6% min)
+  }}
+
+#Graduate debt (original + annual interest)
+
+for (i in 2:length(graduate_debt)) {
+  if(((graduate_debt[[i-1]]) * postgrad_interest[i]) - (repayment_pg[i]) > 0){
+  graduate_debt[i] = (graduate_debt[[i-1]] *postgrad_interest) - (repayment_pg[i])
+  } else 
+  graduate_debt[i] = 0
+}
+
+#Undergraduate debt (original + annual interest)
+for (i in 2:length(undergrad_debt)) {
+  if (((undergrad_debt[[i-1]]) * undergrad_interest[i]) - (repayment_ug[i]) > 0){
+    undergrad_debt[i] = (undergrad_debt[[i-1]] * undergrad_interest) - (repayment_ug[i])}
+    else 
+    undergrad_debt[i] = 0
+  }
+
+#Make pretty + Add total debt
+undergrad_debt = as.numeric(format(round(undergrad_debt,2)))
+graduate_debt = as.numeric(format(round(graduate_debt,2))) 
+total_debt = undergrad_debt + graduate_debt
+
+
+#Make sure all money goes to repayment and there are no over-payments last year
+for(i in 2:length(repayment_ug)){
+  if(undergrad_debt[[i-1]]<repayment_ug[i]){
+    repayment_ug[i] = undergrad_debt[[i-1]]
+  }}
+
+for(i in 2:length(repayment_pg)){
+  if(graduate_debt[[i-1]]<repayment_pg[i]){
+    repayment_pg[i] = graduate_debt[[i-1]]
+  }}
+
+#Create cumulative payments
+cumulative_payments = rep(0,25)
+for(i in 2:length(repayment_pg)){
+  cumulative_payments[i] = cumulative_payments[[i-1]] + repayment_pg[i] + repayment_ug[i]
+}
+
+
+#Create dataframe
+dataframe = cbind(years,undergrad_debt, graduate_debt, salary,repayment_ug, repayment_pg, undergrad_interest, postgrad_interest, total_debt, cumulative_payments)
+
+
+```
+
+
+```{r}
+#Plot!
+par(mar = c(7, 5, 3, 5))
+grand_total = cumulative_payments[25]
+percent_increase = round(((grand_total / (undergrad_debt[1] + graduate_debt[1])) -1) * 100, 2)
+
+plot(dataframe[1:25, 2], type="l",col="blue", ylab = "Debt", xlab = "Years", main = "How long until ultimate freedom?", ylim = c(0,50000))
+
+mysubtitle = paste0("Received: £",(undergrad_debt[1] + graduate_debt[1]),"    Repaid:  £", grand_total,".   That's a ", percent_increase, "% increase.")
+mtext(side=1, line=5,  mysubtitle)
+
+lines(dataframe[1:25, 3],col="red")
+legend("topright", c("Undergrad", "Grad"),
+       col = c("blue", "red"), lty = c(1, 1))
+
+
+```
+
+
